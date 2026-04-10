@@ -2,7 +2,7 @@
 /* Branding: NEXO POS Logo */
 .navbar-brand img {
     height: 35px !important;
-    content: url('nexo_restaurant/nexo_restaurant/public/images/nexo_logo.png');
+    content: url('nexo_restaurant/public/images/nexo_logo.png');
 }
 
 /* 70/30 Layout Proportions */
