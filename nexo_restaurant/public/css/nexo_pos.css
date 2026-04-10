@@ -1,1 +1,27 @@
 
+/* Branding: NEXO POS Logo */
+.navbar-brand img {
+    height: 35px !important;
+    content: url('/assets/nexo_restaurant/images/nexo_logo.png');
+}
+
+/* 70/30 Layout Proportions */
+.pos-container .left-column { flex: 0 0 70% !important; }
+.pos-container .right-column { flex: 0 0 30% !important; }
+
+/* Horizontal Menu Scroll */
+.item-group-container {
+    display: flex !important;
+    overflow-x: auto !important;
+    white-space: nowrap !important;
+    padding: 10px 0;
+    scrollbar-width: none; /* Hide scrollbar for clean look */
+}
+.item-group-button {
+    background: rgba(255, 255, 255, 0.1) !important;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 50px;
+    padding: 8px 25px;
+    margin-right: 10px;
+}
