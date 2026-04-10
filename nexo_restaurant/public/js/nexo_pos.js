@@ -1,90 +1,147 @@
-$(document).on('app_ready', function() {
-    // Check if the current POS Profile has the restaurant checkbox enabled
-    if (frappe.boot.pos_profile.is_restaurant_profile) {
-        
-        // 1. Branding: Swap Logo and Text
-        $('.navbar-brand img').attr('src', '/assets/nexo_restaurant/images/nexo_logo.png');
-        $('.navbar-brand-text').text('NEXO POS');
+/**
+ * NEXO Restaurant POS Customization logic
+ * Optimized for Frappe v15 / POS Awesome
+ */
 
-        // 2. Layout: Rearrange Menu (Item Groups) to be below Search
-        // We use a timeout to ensure the DOM is fully rendered by POS Awesome
-        setTimeout(() => {
-            $('.item-group-container').insertAfter('.search-item-container');
-            $('.item-group-container').addClass('nexo-horizontal-menu');
-        }, 500);
-        
-        // 3. Add-on Logic Hook: Intercept the "Add to Cart" click
-        const original_add_to_cart = frappe.ui.posapp.cart.add_item;
-        
-        frappe.ui.posapp.cart.add_item = function(item) {
-            frappe.call({
-                method: "frappe.client.get",
-                args: { 
-                    doctype: "Item", 
-                    name: item.item_code 
-                },
-                callback: function(r) {
-                    // Check if the item has add-ons configured in the NEXO Child Table
-                    if (r.message.nexo_add_ons && r.message.nexo_add_ons.length > 0) {
-                        show_addon_modal(item, r.message.nexo_add_ons, original_add_to_cart);
-                    } else {
-                        // If no add-ons, proceed with standard addition
-                        original_add_to_cart(item);
-                    }
-                }
-            });
-        };
+$(document).on('app_ready', function() {
+    // Only run if the user is actually visiting the POS page
+    if (frappe.get_route()[0] === 'posapp') {
+        init_nexo_restaurant_observer();
     }
 });
 
-function show_addon_modal(item, addons, callback) {
+/**
+ * Wait for POS Awesome instance to be ready before applying UI/Logic changes
+ */
+function init_nexo_restaurant_observer() {
+    let attempts = 0;
+    const max_attempts = 20;
+
+    const check_interval = setInterval(() => {
+        attempts++;
+        
+        // Target the POS Awesome instance and its loaded profile
+        if (frappe.ui.posapp && frappe.ui.posapp.instance && frappe.ui.posapp.instance.pos_profile) {
+            clearInterval(check_interval);
+            
+            const profile = frappe.ui.posapp.instance.pos_profile;
+            
+            // Only apply customizations if "Is Restaurant Profile" is checked
+            if (profile.is_restaurant_profile) {
+                apply_nexo_restaurant_ui();
+                hook_nexo_pos_cart();
+            }
+        }
+
+        if (attempts >= max_attempts) {
+            clearInterval(check_interval);
+            console.log("NEXO POS: Profile loading timed out or not a Restaurant Profile.");
+        }
+    }, 500);
+}
+
+/**
+ * Handles all UI transformations (Branding, Layout, Menus)
+ */
+function apply_nexo_restaurant_ui() {
+    console.log("NEXO: Applying Restaurant UI...");
+
+    // 1. Branding: Swap Logo (Image must be in /public/images/nexo_logo.png)
+    $('.navbar-brand img').attr('src', '/assets/nexo_restaurant/images/nexo_logo.png');
+    $('.navbar-brand-text').text('NEXO POS');
+
+    // 2. Layout: Move Item Groups below search and make them horizontal
+    // Using a minor delay to ensure Vue has finished rendering the selector
+    setTimeout(() => {
+        const item_group_area = $('.item-group-container');
+        const search_area = $('.search-item-container');
+
+        if (item_group_area.length && search_area.length) {
+            item_group_area.insertAfter(search_area);
+            item_group_area.addClass('nexo-horizontal-menu'); // Targeted by your CSS
+        }
+    }, 800);
+}
+
+/**
+ * Intercepts the add_item function to inject the Add-on Dialog
+ */
+function hook_nexo_pos_cart() {
+    const cart = frappe.ui.posapp.instance.cart;
+    const original_add_item = cart.add_item.bind(cart);
+
+    cart.add_item = function(item) {
+        // Fetch the full Item document to check for custom NEXO add-ons
+        frappe.call({
+            method: "frappe.client.get",
+            args: { 
+                doctype: "Item", 
+                name: item.item_code 
+            },
+            callback: function(r) {
+                const item_doc = r.message;
+                
+                if (item_doc && item_doc.nexo_add_ons && item_doc.nexo_add_ons.length > 0) {
+                    show_nexo_addon_modal(item, item_doc.nexo_add_ons, original_add_item);
+                } else {
+                    original_add_item(item);
+                }
+            }
+        });
+    };
+}
+
+/**
+ * Renders the Add-on Dialog
+ */
+function show_nexo_addon_modal(item, addons, callback) {
     let selected_addons = [];
 
-    // Generate HTML for the add-on rows
     let addon_html = addons.map(a => `
-        <div class="nexo-addon-row" style="display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid #f1f1f1;">
-            <div style="font-weight: 500;">
-                ${a.item_name} <br>
-                <small class="text-muted">Rs. ${frappe.format(a.price, {fieldtype: 'Currency'})}</small>
+        <div class="nexo-addon-row" style="display:flex; justify-content:space-between; align-items:center; padding:15px; border-bottom:1px solid #f1f1f1;">
+            <div>
+                <span style="font-weight: 600; font-size: 1.1em;">${a.item_name}</span><br>
+                <span class="text-primary">+ ${frappe.format(a.price, {fieldtype: 'Currency'})}</span>
             </div>
-            <button class="btn btn-sm btn-default btn-add-nexo" 
-                onclick="this.classList.toggle('btn-primary'); toggleNexoAddon('${a.item_name}', ${a.price}, this)">
+            <button class="btn btn-sm btn-default nexo-addon-btn" 
+                style="min-width: 80px; border-radius: 20px;"
+                onclick="toggleNexoAddonSelection('${a.item_name}', ${a.price}, this)">
                 Add
             </button>
         </div>
     `).join('');
 
-    // Internal helper to track selections within the dialog
-    window.toggleNexoAddon = function(name, price, btn) {
+    // Global helper for the button clicks inside the HTML string
+    window.toggleNexoAddonSelection = function(name, price, btn) {
         const index = selected_addons.findIndex(x => x.name === name);
         if (index > -1) {
             selected_addons.splice(index, 1);
-            btn.innerText = "Add";
+            $(btn).text("Add").removeClass("btn-primary").addClass("btn-default");
         } else {
-            selected_addons.push({name: name, price: price});
-            btn.innerText = "Selected";
+            selected_addons.push({ name: name, price: price });
+            $(btn).text("Selected").removeClass("btn-default").addClass("btn-primary");
         }
     };
 
     const d = new frappe.ui.Dialog({
-        title: `Customize ${item.item_name}`,
+        title: `Options for ${item.item_name}`,
         fields: [
             {
                 fieldtype: 'HTML',
-                fieldname: 'addons_list',
-                options: `<div style="max-height: 400px; overflow-y: auto;">${addon_html}</div>`
+                fieldname: 'list',
+                options: `<div style="max-height: 450px; overflow-y: auto;">${addon_html}</div>`
             }
         ],
-        primary_action_label: 'Add to Order',
+        primary_action_label: 'Update Order',
         primary_action() {
-            // Append selected add-ons to the item description
             if (selected_addons.length > 0) {
-                let addon_text = "\nAdd-ons: " + selected_addons.map(x => `${x.name} (Rs. ${x.price})`).join(", ");
-                item.description = (item.description || "") + addon_text;
+                // Update description for the receipt/kitchen
+                const names = selected_addons.map(x => x.name).join(", ");
+                item.description = (item.description || "") + "\n[Add-ons: " + names + "]";
                 
-                // Note: To actually increase the price in the cart, 
-                // you would update item.rate here, but appending to description 
-                // is the standard way to inform the kitchen.
+                // Increase the price of the item by the total of selected add-ons
+                const total_addon_price = selected_addons.reduce((sum, x) => sum + x.price, 0);
+                item.rate = parseFloat(item.rate) + total_addon_price;
             }
             
             callback(item);
