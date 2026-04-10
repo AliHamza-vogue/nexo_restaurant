@@ -1,1 +1,12 @@
 
+{
+ "doctype": "DocType",
+ "name": "NEXO Item Addon",
+ "module": "NEXO Restaurant",
+ "istable": 1,
+ "fields": [
+  {"fieldname": "item_code", "fieldtype": "Link", "label": "Item Code", "options": "Item", "in_list_view": 1},
+  {"fieldname": "item_name", "fieldtype": "Read Only", "label": "Item Name", "fetch_from": "item_code.item_name", "in_list_view": 1},
+  {"fieldname": "price", "fieldtype": "Currency", "label": "Price", "in_list_view": 1}
+ ]
+}
