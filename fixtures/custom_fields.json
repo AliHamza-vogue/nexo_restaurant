@@ -1,1 +1,21 @@
-
+[
+ {
+  "dt": "Custom Field",
+  "name": "POS Profile-is_restaurant_profile",
+  "dt": "POS Profile",
+  "fieldname": "is_restaurant_profile",
+  "label": "Is Restaurant Profile",
+  "fieldtype": "Check",
+  "insert_after": "name"
+ },
+ {
+  "dt": "Custom Field",
+  "name": "Item-nexo_add_ons",
+  "dt": "Item",
+  "fieldname": "nexo_add_ons",
+  "label": "Add-ons",
+  "fieldtype": "Table",
+  "options": "NEXO Item Addon",
+  "insert_after": "description"
+ }
+]
